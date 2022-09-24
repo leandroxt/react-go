@@ -1,0 +1,11 @@
+{
+  email myemailtest@hotmail.com
+}
+
+localhost {
+  respond /debug/* "Not Permitted" 403
+  reverse_proxy localhost:3000
+  
+  reverse_proxy /v1 localhost:8080/v1/*
+}
+

@@ -1,0 +1,15 @@
+{{define "header"}}
+<header class="site-header">
+    <div class="container header-inner">
+        <a class="brand" href="/">LiquidGo</a>
+
+        <nav class="nav">
+            <a href="/">Pools</a>
+            <a href="/#como-funciona">Como funciona</a>
+        </nav>
+
+        {{/* The only interactive part of the header. */}}
+        {{island "connect-wallet" .Wallet}}
+    </div>
+</header>
+{{end}}

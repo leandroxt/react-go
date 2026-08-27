@@ -1,0 +1,89 @@
+{{define "main"}}
+<main>
+    <section class="hero">
+        <div class="container">
+            <p class="eyebrow">Base · USDC</p>
+            <h1>Liquidez sem custódia, montada por você</h1>
+            <p class="lede">
+                Conecte sua carteira e monte posições de liquidez na Base.
+                As chaves e os ativos nunca saem da sua carteira — o site
+                apenas prepara as transações que você assina.
+            </p>
+        </div>
+    </section>
+
+    <!-- Conteúdo indexável: renderizado pelo Go, não por React. -->
+    <section class="container section">
+        <h2>Pools disponíveis</h2>
+        <table class="pools">
+            <thead>
+                <tr>
+                    <th>Par</th>
+                    <th>Fee</th>
+                    <th>TVL</th>
+                    <th>APR</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Data}}
+                <tr>
+                    <td><a href="/pools/{{.ID}}">{{.Pair}}</a></td>
+                    <td>{{.FeeBps}} bps</td>
+                    <td>{{.TVL}}</td>
+                    <td class="apr">{{.APR}}</td>
+                    <td><a class="btn-ghost" href="/pools/{{.ID}}">Ver pool</a></td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="container section" id="como-funciona">
+        <h2>Como funciona</h2>
+        <ol class="steps">
+            <li>
+                <h3>Conecte a carteira</h3>
+                <p>MetaMask ou qualquer carteira EIP-1193. Só leitura de endereço.</p>
+            </li>
+            <li>
+                <h3>Escolha o par e o valor</h3>
+                <p>Você define a faixa e o quanto entra na posição.</p>
+            </li>
+            <li>
+                <h3>Assine a transação</h3>
+                <p>A posição é criada em seu nome. Em nenhum momento custodiamos os ativos.</p>
+            </li>
+        </ol>
+    </section>
+
+    <section class="container section">
+        <h2>Perguntas frequentes</h2>
+
+        {{/* <details> em vez de acordeão em JS: o texto fica no HTML,
+             indexável, e funciona sem JavaScript nenhum. */}}
+        <details class="faq">
+            <summary>Vocês têm custódia dos meus ativos?</summary>
+            <p>
+                Não. As transações são assinadas pela sua carteira e a posição
+                fica no seu endereço. Não existe endereço intermediário.
+            </p>
+        </details>
+        <details class="faq">
+            <summary>Como é feita a cobrança?</summary>
+            <p>
+                Via x402, em USDC na Base. A taxa é cobrada por operação, no
+                momento em que você monta a posição.
+            </p>
+        </details>
+        <details class="faq">
+            <summary>O que é impermanent loss?</summary>
+            <p>
+                É a diferença entre manter os tokens parados e mantê-los em uma
+                pool quando o preço relativo se move. APR alta costuma vir
+                acompanhada de IL alta.
+            </p>
+        </details>
+    </section>
+</main>
+{{end}}

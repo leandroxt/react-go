@@ -1,0 +1,29 @@
+{{define "base"}}
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>{{.Title}} · LiquidGo</title>
+    <meta name="description" content="{{.Description}}" />
+
+    <link rel="stylesheet" href="/static/main.css" />
+    <link rel="modulepreload" href="/static/app.js" />
+    <script type="module" src="/static/app.js"></script>
+
+    {{/* block, not template: pages without a "head" are still valid */}}
+    {{block "head" .}}{{end}}
+</head>
+
+<body>
+    {{template "header" .}}
+    {{template "main" .}}
+    {{template "footer" .}}
+
+    {{block "script" .}}{{end}}
+</body>
+
+</html>
+{{end}}

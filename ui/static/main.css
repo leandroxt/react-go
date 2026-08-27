@@ -1,0 +1,66 @@
+:root {
+    --bg: #ffffff;
+    --fg: #16181d;
+    --muted: #6b7280;
+    --border: #d8dbe2;
+    --accent: #2f5bea;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #111318;
+        --fg: #e9eaee;
+        --muted: #9aa1ad;
+        --border: #2c313b;
+        --accent: #7c9bff;
+    }
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.page {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 4rem 1.5rem;
+}
+
+.page h1 {
+    margin: 0 0 2rem;
+    font-size: 2rem;
+    letter-spacing: -0.02em;
+}
+
+.counter {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.counter__button {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+
+.counter__button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.counter__value {
+    min-width: 4rem;
+    text-align: center;
+    font-size: 2rem;
+    font-variant-numeric: tabular-nums;
+}

@@ -3,11 +3,10 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "useDefineForClassFields": false,
-    "experimentalDecorators": true,
+    "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["ui/components/**/*.ts"]
+  "include": ["ui/app/**/*.tsx"]
 }

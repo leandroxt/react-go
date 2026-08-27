@@ -18,18 +18,24 @@ func main() {
 	watch := flag.Bool("watch", false, "rebuild on file change")
 	flag.Parse()
 
+	// React ships both a dev and a prod path behind this check. Without the
+	// define, esbuild cannot drop the dev half and the bundle stays large.
+	env := `"production"`
+	if *watch {
+		env = `"development"`
+	}
+
 	opts := api.BuildOptions{
-		EntryPoints: []string{"ui/components/index.ts"},
+		EntryPoints: []string{"ui/app/main.tsx"},
 		Outfile:     "ui/static/app.js",
 
 		Bundle: true,
 		Write:  true,
 		Format: api.FormatESModule,
-		Target: api.ES2022, // native class fields, no transpile tax
+		Target: api.ES2022,
 
-		// Honours useDefineForClassFields: false, without which class fields
-		// get define semantics and silently shadow Lit's reactive accessors.
-		Tsconfig: "tsconfig.json",
+		JSX:     api.JSXAutomatic, // no `import React` needed
+		Define:  map[string]string{"process.env.NODE_ENV": env},
 
 		LogLevel: api.LogLevelInfo,
 	}
@@ -43,7 +49,7 @@ func main() {
 		if err := ctx.Watch(api.WatchOptions{}); err != nil {
 			log.Fatalf("build: %v", err)
 		}
-		log.Println("build: watching ui/components")
+		log.Println("build: watching ui/app")
 		select {}
 	}
 

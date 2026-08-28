@@ -1,4 +1,4 @@
-# CLAUDE.md — Go + React, one binary
+# CLAUDE.md — react-go
 
 Reference implementation of the architecture. Deliberately minimal, but every
 choice points at production.
@@ -181,4 +181,3 @@ Each is small and deliberate — listed so nobody mistakes them for decisions.
   cannot be `immutable`. Route it through the manifest too when it grows.
 - **No CSP.** The inline JSON state block is `type="application/json"`, not
   executable, so a strict script-src is achievable without nonces.
-- **The module is still named `lit-go`.**

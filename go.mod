@@ -1,4 +1,4 @@
-module github.com/leandroxt/lit-go
+module github.com/leandroxt/react-go
 
 go 1.26.1
 

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/leandroxt/lit-go/ui"
+	"github.com/leandroxt/react-go/ui"
 )
 
 // ---------------------------------------------------------------------------

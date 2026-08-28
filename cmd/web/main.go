@@ -9,115 +9,80 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/leandroxt/lit-go/ui"
 )
 
-// Base mainnet. The client checks this and asks the wallet to switch.
-const (
-	chainID   = 8453
-	chainName = "Base"
-)
-
 // ---------------------------------------------------------------------------
-// Domain
+// Page contract
 // ---------------------------------------------------------------------------
 
-// pool is server-owned data. It is rendered into HTML by Go so crawlers can
-// read it, and only the parts a user interacts with are handed to an island.
-type pool struct {
-	ID     string
-	Pair   string
-	TokenA string
-	TokenB string
-	FeeBps int
-	TVL    string
-	APR    string
-	About  string
+// shared is injected into every page. Pages are separate documents, so React
+// state does not survive navigation — anything that must be present everywhere
+// is server-owned and re-sent on each render.
+type shared struct {
+	AppName string `json:"appName"`
+	User    string `json:"user"`
 }
 
-var pools = []pool{
-	{
-		ID: "usdc-weth-005", Pair: "USDC / WETH",
-		TokenA: "USDC", TokenB: "WETH", FeeBps: 5,
-		TVL: "$12.4M", APR: "14.2%",
-		About: "Par de maior volume na Base. Faixa estreita, rebalanceamento frequente.",
-	},
-	{
-		ID: "usdc-cbbtc-030", Pair: "USDC / cbBTC",
-		TokenA: "USDC", TokenB: "cbBTC", FeeBps: 30,
-		TVL: "$3.8M", APR: "21.7%",
-		About: "Exposição a BTC na Base via cbBTC. Volatilidade maior, fee tier maior.",
-	},
-	{
-		ID: "usdc-aero-100", Pair: "USDC / AERO",
-		TokenA: "USDC", TokenB: "AERO", FeeBps: 100,
-		TVL: "$1.1M", APR: "38.4%",
-		About: "Token nativo do Aerodrome. APR alta acompanhada de impermanent loss alta.",
-	},
+// page is what every handler builds and render() consumes.
+//
+// Route is both the template name and the manifest key, so /about resolves to
+// html/pages/about.html and to the about-<hash>.js bundle.
+type page struct {
+	Route       string
+	Title       string
+	Description string
+	Props       any // page-specific initial state; nil when the page needs none
 }
 
-func poolByID(id string) (pool, bool) {
-	for _, p := range pools {
-		if p.ID == id {
-			return p, true
-		}
-	}
-	return pool{}, false
-}
-
-// ---------------------------------------------------------------------------
-// Island props — these are the ONLY structs that cross into React.
-// ---------------------------------------------------------------------------
-
-type walletProps struct {
-	ChainID   int    `json:"chainId"`
-	ChainName string `json:"chainName"`
-}
-
-type depositProps struct {
-	PoolID     string  `json:"poolId"`
-	Pair       string  `json:"pair"`
-	TokenA     string  `json:"tokenA"`
-	TokenB     string  `json:"tokenB"`
-	MinDeposit float64 `json:"minDeposit"`
-	ChainID    int     `json:"chainId"`
+type application struct {
+	templates map[string]*template.Template
+	bundles   map[string]string // route -> hashed bundle URL
+	shared    shared
 }
 
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
 
-type page struct {
-	Title       string
-	Description string
-	Wallet      walletProps // header island, present on every page
-	Data        any         // rendered into HTML by Go — this is what SEO reads
+// view is the data every template sees. state() and bundle() below are the
+// only two things templates need from it.
+type view struct {
+	page
+	Shared shared
+	Bundle string
 }
 
-type application struct {
-	templates map[string]*template.Template
-}
-
-// island emits the mount point for a React island plus its props as JSON.
+// state emits the JSON the React entry point reads before mounting.
 //
-// Centralising it here is the point: no handler can forget the encoding, and
+// Centralising the encoding is the point: no handler can forget it, and
 // json.Marshal escapes <, > and & so a "</script>" payload cannot break out.
-func island(name string, props any) (template.HTML, error) {
-	b, err := json.Marshal(props)
+func state(v view) (template.HTML, error) {
+	b, err := json.Marshal(struct {
+		Shared shared `json:"shared"`
+		Props  any    `json:"props"`
+	}{v.Shared, v.Props})
 	if err != nil {
-		return "", fmt.Errorf("island %q: %w", name, err)
+		return "", fmt.Errorf("state %q: %w", v.Route, err)
 	}
-	return template.HTML(fmt.Sprintf(
-		`<div data-island="%s"><script type="application/json">%s</script></div>`,
-		template.HTMLEscapeString(name), b,
-	)), nil
+	return template.HTML(
+		`<script type="application/json" id="state">` + string(b) + `</script>`,
+	), nil
 }
 
-func (app *application) render(w http.ResponseWriter, name string, p page) {
-	ts, ok := app.templates[name]
+func (app *application) render(w http.ResponseWriter, p page) {
+	ts, ok := app.templates[p.Route]
 	if !ok {
-		log.Printf("render: no template %q", name)
+		log.Printf("render: no template for route %q", p.Route)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	bundle, ok := app.bundles[p.Route]
+	if !ok {
+		log.Printf("render: no bundle for route %q — run `go run ./cmd/build`", p.Route)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -125,8 +90,9 @@ func (app *application) render(w http.ResponseWriter, name string, p page) {
 	// Buffer first: a failed render must not emit half a page with a 200
 	// already sent.
 	var buf bytes.Buffer
-	if err := ts.ExecuteTemplate(&buf, "base", p); err != nil {
-		log.Printf("render %s: %v", name, err)
+	v := view{page: p, Shared: app.shared, Bundle: bundle}
+	if err := ts.ExecuteTemplate(&buf, "base", v); err != nil {
+		log.Printf("render %s: %v", p.Route, err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -135,81 +101,86 @@ func (app *application) render(w http.ResponseWriter, name string, p page) {
 	buf.WriteTo(w)
 }
 
+// ---------------------------------------------------------------------------
+// Startup
+// ---------------------------------------------------------------------------
+
 func newTemplates() (map[string]*template.Template, error) {
-	cache := map[string]*template.Template{}
-
-	funcs := template.FuncMap{"island": island}
-
-	// ParseFS fails on a pattern matching zero files, so only include the
-	// partials glob once there is a partial to parse.
-	partials, err := fs.Glob(ui.Files, "html/partials/*.html")
-	if err != nil {
-		return nil, err
-	}
+	funcs := template.FuncMap{"state": state}
 
 	pages, err := fs.Glob(ui.Files, "html/pages/*.html")
 	if err != nil {
 		return nil, err
 	}
+	if len(pages) == 0 {
+		return nil, fmt.Errorf("no page templates in html/pages")
+	}
 
+	cache := map[string]*template.Template{}
 	for _, p := range pages {
-		name := filepath.Base(p)
+		route := strings.TrimSuffix(filepath.Base(p), ".html")
 
-		patterns := append([]string{"html/base.html"}, partials...)
-		patterns = append(patterns, p)
-
-		ts, err := template.New(name).Funcs(funcs).ParseFS(ui.Files, patterns...)
+		ts, err := template.New(route).Funcs(funcs).ParseFS(ui.Files, "html/base.html", p)
 		if err != nil {
 			return nil, err
 		}
-		cache[name] = ts
+		cache[route] = ts
 	}
-
 	return cache, nil
 }
 
-// ---------------------------------------------------------------------------
-// Handlers — one per page, each injecting its own initial state.
-// ---------------------------------------------------------------------------
+// newBundles reads the manifest esbuild wrote, mapping route -> hashed URL.
+func newBundles() (map[string]string, error) {
+	b, err := ui.Files.ReadFile("static/build/manifest.json")
+	if err != nil {
+		return nil, fmt.Errorf("read manifest (run `go run ./cmd/build` first): %w", err)
+	}
 
-func wallet() walletProps {
-	return walletProps{ChainID: chainID, ChainName: chainName}
+	var bundles map[string]string
+	if err := json.Unmarshal(b, &bundles); err != nil {
+		return nil, err
+	}
+	return bundles, nil
 }
 
-func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	app.render(w, "home.html", page{
-		Title:       "Pools de liquidez sem custódia",
-		Description: "Monte posições de liquidez na Base direto da sua carteira. Você mantém a custódia dos ativos o tempo todo.",
-		Wallet:      wallet(),
-		Data:        pools,
+// immutable marks the hashed build output as cacheable forever.
+//
+// Without this the shared chunk — React, ~190kb — is refetched on every
+// navigation, which cancels most of the benefit of splitting per route. It is
+// safe precisely because the filenames are content-hashed: a changed file gets
+// a new URL, so a stale cache entry can never be served.
+func immutable(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/static/build/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		h.ServeHTTP(w, r)
 	})
 }
 
-func (app *application) pool(w http.ResponseWriter, r *http.Request) {
-	p, ok := poolByID(r.PathValue("id"))
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
+// ---------------------------------------------------------------------------
+// Handlers — one per route, each passing its own initial state.
+// ---------------------------------------------------------------------------
 
-	app.render(w, "pool.html", page{
-		Title:       "Pool " + p.Pair,
-		Description: p.About,
-		Wallet:      wallet(),
-		Data: struct {
-			Pool    pool
-			Deposit depositProps
-		}{
-			Pool: p,
-			Deposit: depositProps{
-				PoolID:     p.ID,
-				Pair:       p.Pair,
-				TokenA:     p.TokenA,
-				TokenB:     p.TokenB,
-				MinDeposit: 10,
-				ChainID:    chainID,
-			},
-		},
+type homeProps struct {
+	Count int `json:"count"`
+}
+
+func (app *application) home(w http.ResponseWriter, r *http.Request) {
+	app.render(w, page{
+		Route:       "home",
+		Title:       "Home",
+		Description: "Go renders the shell, React renders <main>, one binary ships both.",
+		Props:       homeProps{Count: 42},
+	})
+}
+
+func (app *application) about(w http.ResponseWriter, r *http.Request) {
+	// Props is nil: this page needs no initial state, only the shared context.
+	app.render(w, page{
+		Route:       "about",
+		Title:       "Sobre",
+		Description: "Como o bundle por rota e o contexto compartilhado funcionam.",
 	})
 }
 
@@ -219,17 +190,26 @@ func main() {
 		log.Fatalf("templates: %v", err)
 	}
 
+	bundles, err := newBundles()
+	if err != nil {
+		log.Fatalf("bundles: %v", err)
+	}
+
 	static, err := fs.Sub(ui.Files, "static")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	app := &application{templates: templates}
+	app := &application{
+		templates: templates,
+		bundles:   bundles,
+		shared:    shared{AppName: "go-react", User: "leandro"},
+	}
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
+	mux.Handle("GET /static/", immutable(http.StripPrefix("/static/", http.FileServerFS(static))))
 	mux.HandleFunc("GET /{$}", app.home)
-	mux.HandleFunc("GET /pools/{id}", app.pool)
+	mux.HandleFunc("GET /about", app.about)
 
 	log.Println("listening on http://localhost:8080")
 	log.Fatal(http.ListenAndServe("0.0.0.0:8080", mux))

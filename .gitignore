@@ -1,4 +1,3 @@
 node_modules/
-ui/static/app.js
-ui/static/app.js.map
+ui/static/build/
 bin/

@@ -6,23 +6,35 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>{{.Title}} · LiquidGo</title>
+    <title>{{.Title}} · {{.Shared.AppName}}</title>
     <meta name="description" content="{{.Description}}" />
 
     <link rel="stylesheet" href="/static/main.css" />
-    <link rel="modulepreload" href="/static/app.js" />
-    <script type="module" src="/static/app.js"></script>
 
-    {{/* block, not template: pages without a "head" are still valid */}}
+    {{/* Per-route bundle, resolved through the esbuild manifest.
+         modulepreload starts the fetch during parsing rather than after. */}}
+    <link rel="modulepreload" href="{{.Bundle}}" />
+    <script type="module" src="{{.Bundle}}"></script>
+
+    {{/* block, not template: a page with nothing extra to add is still valid.
+         This is where a page puts its own OG tags, JSON-LD, canonical. */}}
     {{block "head" .}}{{end}}
 </head>
 
 <body>
-    {{template "header" .}}
-    {{template "main" .}}
-    {{template "footer" .}}
+    <header class="site-header">
+        <a class="brand" href="/">{{.Shared.AppName}}</a>
+        <nav>
+            <a href="/">Home</a>
+            <a href="/about">Sobre</a>
+        </nav>
+    </header>
 
-    {{block "script" .}}{{end}}
+    {{/* React mounts over <main>. Pages define it empty — everything inside
+         belongs to the route component. */}}
+    {{template "main" .}}
+
+    {{state .}}
 </body>
 
 </html>

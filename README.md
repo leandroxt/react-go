@@ -249,8 +249,13 @@ in the middle of the build.
 ### Everything is one binary
 
 `//go:embed "html" "static"` pulls the templates, the CSS and the hashed
-bundles into the executable. `bin/app` is ~11.8 MiB and has no runtime
-dependency on the filesystem it was built on.
+bundles into the executable. `bin/app` has no runtime dependency on the
+filesystem it was built on — you can `scp` it to an empty box and run it.
+
+It is linked with `-ldflags="-s -w"`, which drops the symbol table and the
+DWARF debug info: **11.8 MiB → 8.3 MiB, a 30% cut** for a binary that still
+prints full panic stack traces, since those come from the runtime rather than
+from DWARF. Drop the flags if you intend to attach a debugger.
 
 ### No CDN. Not for fonts, not for CSS, not for JS.
 
